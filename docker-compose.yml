@@ -1,0 +1,21 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: straystar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: straystar
+      POSTGRES_PASSWORD: straystar
+      POSTGRES_DB: straystar
+    ports:
+      - '5433:5432'
+    volumes:
+      - straystar-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U straystar -d straystar']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  straystar-pgdata:

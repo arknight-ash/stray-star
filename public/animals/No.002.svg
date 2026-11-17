@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="橘长">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#C9762F" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#131A38" stop-opacity="0.95"/>
+    </radialGradient>
+  </defs>
+  <rect width="160" height="160" fill="#131A38"/>
+  <circle cx="80" cy="72" r="46" fill="url(#g)"/>
+  <path d="M46 40 L52 16 L74 32 Z" fill="#C9762F"/>
+  <path d="M114 40 L108 16 L86 32 Z" fill="#C9762F"/>
+  <circle cx="64" cy="66" r="4.5" fill="#0B1026"/>
+  <circle cx="96" cy="66" r="4.5" fill="#0B1026"/>
+  <path d="M72 84 Q80 90 88 84" stroke="#0B1026" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <text x="80" y="140" text-anchor="middle" font-family="serif" font-size="30" fill="#FFE3A3">猫</text>
+  <text x="80" y="154" text-anchor="middle" font-family="monospace" font-size="10" fill="#9AA3C7">No.002</text>
+</svg>
