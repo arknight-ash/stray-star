@@ -1,0 +1,268 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ---------- 用户与权限 ----------
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  studentId String   @unique
+  email     String?  @unique
+  password  String?
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+
+  observations Observation[]
+  photos       AnimalPhoto[]
+  auditLogs    AuditLog[]
+  reviews      HealthReport[] @relation("ReportReviewer")
+  ackedAlerts  Alert[]        @relation("AlertAcker")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+// ---------- 个体：一颗星 ----------
+model Animal {
+  id          String      @id @default(cuid())
+  name        String
+  code        String      @unique // No.012
+  species     Species
+  avatarUrl   String?
+  embedding   Unsupported("vector(1536)")?
+  healthLevel HealthLevel @default(GREEN)
+  mapLat      Float?
+  mapLng      Float?
+  summary     String? // 一句话最新状态（手账便签）
+  // 个体外观特征。既是档案页展示内容，也是识别「关键词路」比对的目标文本 ——
+  // 没有它，运行时无法做字面覆盖率比对，而识别阈值正是按覆盖率标定的
+  features    String[]  @default([])
+  // 待管理员核实。匿名建档/匿名上传一律为 true。
+  // 语义：true 的档案在地图与图中按「未确认事实」处理，且不进高置信点位。
+  pendingReview Boolean @default(false)
+  // 管理员手动设定优先。true 时 deriveHealthLevel 直接返回现值 ——
+  // 现场结论不该被 14 天窗口里还没过期的一条旧记录推翻（见 docs/stage-4-profile.md §11.2）
+  healthManual Boolean @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  photos        AnimalPhoto[]
+  observations  Observation[]
+  healthReports HealthReport[]
+  alerts        Alert[]
+
+  @@index([healthLevel])
+  @@index([species])
+}
+
+enum Species {
+  CAT
+  DOG
+}
+
+enum HealthLevel {
+  GREEN
+  YELLOW
+  RED
+}
+
+// ---------- 照片：识别输入与向量 ----------
+model AnimalPhoto {
+  id         String  @id @default(cuid())
+  animalId   String?
+  animal     Animal? @relation(fields: [animalId], references: [id], onDelete: SetNull)
+  url        String
+  embedding  Unsupported("vector(1536)")?
+  confidence Float?
+  uploadedBy String?
+  uploader   User?   @relation(fields: [uploadedBy], references: [id], onDelete: SetNull)
+  // 匿名上传 / 待归属的照片为 true，管理员确认后才作为稳定识别依据
+  pendingReview Boolean @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([animalId])
+  @@index([pendingReview])
+}
+
+// ---------- 众包观察 ----------
+model Observation {
+  id        String          @id @default(cuid())
+  animalId  String
+  animal    Animal          @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  // 匿名提交时为 null。之所以放宽而不是建占位 User：
+  // 匿名同学在这面墙上留下便签是这个产品的核心场景，不能因为没有登录态就挡住；
+  // 占位 User 会让 AuditLog.actorId 不再是 null，匿名审计语义就失真了。
+  userId    String?
+  user      User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // 昵称。UI 选填，登录后由实名覆盖 —— 展示优先级：实名 > 昵称 > 「匿名同学」
+  authorName String?
+  type      ObservationType
+  content   String
+  tags      String[]        @default([])
+  severity  Severity        @default(MILD)
+  // 用户手动勾选「情况紧急」。与 AI 抽出的 severity 分开存的原因：
+  // 两者来源不同、可信度不同，混在一个字段里规则就无法区别对待（阶段 7 规则 R4）。
+  // 勾选时服务端会把 severity 一并强制为 SEVERE，但标记仍留在这里，
+  // 让「AI 说轻微、同学说紧急」这种分歧在事后可查。
+  manualSevere Boolean      @default(false)
+  imageUrl  String?
+  mapLat    Float?
+  mapLng    Float?
+  // 匿名提交的观察为 true，管理员核实后转 false（计入正式档案时间线）
+  pendingReview Boolean @default(false)
+  // 种子数据的幂等键。用户提交的数据恒为 null —— seed 全面改成 upsert，
+  // 重跑 seed 永远不会碰到用户记录（禁止用 deleteMany 清表）
+  seedKey   String?         @unique
+  createdAt DateTime        @default(now())
+
+  reports HealthReport[]
+
+  @@index([animalId, createdAt])
+  @@index([pendingReview])
+}
+
+enum ObservationType {
+  FEEDING
+  HEALTH
+  BEHAVIOR
+  OTHER
+}
+
+enum Severity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+// ---------- 多模态健康评估 ----------
+model HealthReport {
+  id              String   @id @default(cuid())
+  animalId        String
+  animal          Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  observationId   String?  @unique
+  observation     Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+  imageUrl        String
+  assessment      String
+  severity        Severity
+  // AI 判定的健康档。与 Animal.healthLevel 同枚举，避免第三套颜色语义。
+  // 必填无默认：每张报告都必须显式落档，宁可插入失败也不要静默变成 GREEN。
+  healthStatus    HealthLevel
+  // 是否需要线下就医。SEVERE 时由服务端强制 true（lib/health/reconcile.ts）
+  needsVet        Boolean  @default(false)
+  advice          String[] @default([])
+  confidence      Float
+  disclaimer      String
+  // 管理员审核结论（阶段 9）：APPROVED = 升格为已确认事实；REJECTED = 判定 AI 误判。
+  // 存量报告默认 APPROVED —— 不翻旧账，只有本阶段之后的新报告才走完整三态。
+  reviewStatus   String   @default("APPROVED")
+  // 驳回必须给理由；通过时的修改说明也放这里（审计 payload 里另有 diff）
+  reviewNote     String?
+  reviewedByAdmin Boolean  @default(false)
+  reviewedById    String?
+  reviewedBy      User?    @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  seedKey         String?  @unique // 同 Observation：种子幂等键，用户数据恒为 null
+  createdAt       DateTime @default(now())
+
+  @@index([animalId, createdAt])
+}
+
+// ---------- 预警 ----------
+model Alert {
+  id        String      @id @default(cuid())
+  animalId  String
+  animal    Animal      @relation(fields: [animalId], references: [id], onDelete: Cascade)
+  level     AlertLevel
+  reason    String
+  status    AlertStatus @default(OPEN)
+  // 触发来源：OBSERVATION | HEALTH_REPORT（阶段 7）。
+  // 为什么不写进 reason 就完事：管理端要按来源筛「同学上报」与「AI 初筛」，
+  // 自测也要按来源精确清理自己产生的行，靠字符串匹配 reason 太脆。
+  source    String?
+  createdAt DateTime    @default(now())
+  ackAt     DateTime?
+  // 关闭时间。与 ackAt 分开：ACK 是「我已知悉」，RESOLVED 是「这件事结了」，
+  // 两个动作可能相隔几天，用同一个时间戳会让进度看起来像瞬间完成。
+  resolvedAt DateTime?
+  // 谁处置的。角色单独落库是为了执行「匿名最多 ACK，不得 RESOLVED」：
+  // 匿名确认只能推进到 ACK，最终关闭 CRITICAL 必须有具体责任人。
+  ackedById   String?
+  ackedBy     User?   @relation("AlertAcker", fields: [ackedById], references: [id], onDelete: SetNull)
+  ackedByRole Role?
+  seedKey     String? @unique // 同 Observation：种子幂等键，用户/S5 规则引擎产生的数据恒为 null
+  // 规则引擎去重键（如 HEALTH_SEVERE:{animalId}:{date}）。
+  // 之所以另开一列：seedKey 已被规定为「种子专用」，规则引擎不能借用它做唯一约束。
+  dedupeKey   String? @unique
+
+  @@index([status, level])
+  @@index([animalId])
+}
+
+enum AlertLevel {
+  INFO
+  WARN
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACK
+  RESOLVED
+}
+
+// ---------- RAG 知识库 ----------
+model KnowledgeDoc {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  /// 整篇向量。保留的原因：切块向量用于「精确定位到段」，
+  /// 整篇向量用于「这一篇整体是否相关」的兜底召回 —— 段级检索偶尔会因为
+  /// 一条要点被切得太碎而整体偏低，此时整篇分能把它救回来
+  embedding Unsupported("vector(1536)")?
+  source    String
+  createdAt DateTime @default(now())
+
+  chunks KnowledgeChunk[]
+}
+
+/// 知识库切块。RAG 的检索与引用粒度是「段」而不是「篇」。
+///
+/// 为什么必须有这张表：整篇一个向量时，引用只能指到《外伤处理》，
+/// 用户核对时要在 400 字里自己找；切块后引用是《外伤处理 · 第 2 段》，
+/// 而且段级向量对「止血」这类只出现在某一条要点里的关键词命中率明显更高
+/// （实测见 docs/stage-6-rag.md §0②）
+model KnowledgeChunk {
+  id        String  @id @default(cuid())
+  docId     String
+  /// 段在篇内的序号，从 0 开始。引用展示为「第 index+1 段」
+  index     Int
+  text      String
+  embedding Unsupported("vector(1536)")?
+
+  doc KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@unique([docId, index])
+  @@index([docId])
+}
+
+// ---------- 审计 ----------
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String?
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
