@@ -1,0 +1,18 @@
+{
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "JSXAttribute > Literal[value=/^#(5BE49B|FFD166|FF6B6B|0B1026|131A38|1E2750|F5B942|FFE3A3|F7F1E3|2B2B2B|EDEFF7|9AA3C7)$/i]",
+        "message": "语义色必须走设计令牌（text-star-green / bg-space-800 / CSS 变量），禁止在 JSX 属性里硬编码十六进制。"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/lib/constants.ts", "src/lib/semantic.ts", "src/styles/*"],
+      "rules": { "no-restricted-syntax": "off" }
+    }
+  ]
+}

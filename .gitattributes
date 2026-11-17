@@ -1,0 +1,15 @@
+# 统一换行符，避免 Windows 开发机把整个仓库变成 CRLF
+* text=auto eol=lf
+
+# 二进制资源不做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# 锁文件与生成物在 diff 中折叠
+package-lock.json linguist-generated=true
