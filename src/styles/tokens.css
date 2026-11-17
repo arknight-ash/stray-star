@@ -1,0 +1,83 @@
+/**
+ * 设计令牌落点 B（唯一事实源）
+ * tailwind.config.ts 与全局变量都从这里取值。修改颜色请只改这个文件。
+ * 2026-10-26 改版：主色 amber → 蓝紫 accent，底色向深靛蓝偏移，辉光改蓝紫外发光。
+ */
+:root {
+  /* 深靛蓝 */
+  --space-900: #0a0e23;
+  --space-800: #141a3c;
+  --space-700: #232b5a;
+
+  /* 蓝紫主色（CTA / 高亮 / 描边） */
+  --accent-300: #c9cfff;
+  --accent-400: #8e99ff;
+  --accent-500: #6e7bff;
+  --accent-600: #5b6cff;
+  /* 主 CTA 渐变：Tailwind 渐变工具类对 var() 色板无效，CTA 一律用这个变量 */
+  --grad-cta: linear-gradient(135deg, #5b6cff, #8b5cf6);
+
+  /* 语义星色：健康状态，全站统一 */
+  --star-green: #5be49b;
+  --star-yellow: #ffd166;
+  --star-red: #ff6b6b;
+
+  /* 图表辅助紫（2026-10-27 管理端仪表盘）。只用于数据可视化的第四类目
+     （「累计观察」KPI 与环形图扇区），**不是语义色** —— 健康/预警仍只用三色 */
+  --violet-300: #c4b5fd;
+  --violet-400: #a78bfa;
+
+  /* 手账纸（旧纸质手账遗留，仅存量兼容，新代码禁用） */
+  --paper: #f7f1e3;
+  --ink: #2b2b2b;
+
+  /* 深空文字 */
+  --text-hi: #edeef7;
+  --text-lo: #9aa3c7;
+
+  /* 圆角 */
+  --radius-card: 16px;
+  --radius-sticker: 4px;
+  --radius-btn: 12px;
+
+  /* 阴影（蓝紫外发光） */
+  --shadow-glow: 0 0 24px rgba(110, 123, 255, 0.1);
+  --shadow-glow-strong: 0 0 32px rgba(139, 92, 246, 0.22);
+  --shadow-paper: 0 2px 8px rgba(43, 43, 43, 0.12);
+
+  /* 动效 */
+  --dur: 240ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-pulse: 2400ms;
+  --dur-dust: 600ms;
+  /* 阶段 3 新增：取景框动效。组件里禁止写死毫秒数，一律从这里取 */
+  --dur-corner: 240ms;
+  --dur-scan: 1400ms;
+  --dur-burst: 420ms;
+  /* 阶段 4 新增：便签飞入（含 overshoot 回弹）。终态是静态倾角，
+     reduced-motion 下浏览器直接落到 100% 帧 —— 便签照样歪着贴在墙上，只是不飞 */
+  --dur-fly: 420ms;
+
+  /* 字体（webfont 由 layout 的 <link> 异步加载，加载失败时自动回落到系统字体） */
+  --font-inter: 'Inter';
+  --font-jetbrains-mono: 'JetBrains Mono';
+  --font-display: 'LXGW WenKai', '霞鹜文楷', 'Noto Serif SC', serif;
+  --font-body: var(--font-inter), 'Noto Sans SC', system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+/* 玻璃拟态卡：全站外壳统一卡面（半透明深底 + 细描边） */
+.glass-card {
+  background-color: color-mix(in srgb, var(--space-800) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--space-700) 80%, transparent);
+  border-radius: var(--radius-card);
+  backdrop-filter: blur(10px);
+}
+
+/* 手账纸面：旧纸质手账遗留，仅存量兼容，新代码禁用 */
+.paper-surface {
+  background-color: var(--paper);
+  color: var(--ink);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-paper);
+}

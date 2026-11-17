@@ -1,0 +1,125 @@
+/**
+ * Leaflet 暗色改造（阶段 2）。
+ * 只放「覆盖 Leaflet 默认外观」的规则，且一律取 tokens.css 的变量 ——
+ * 这里不出现任何十六进制色值（R1）。必须在 leaflet/dist/leaflet.css 之后引入。
+ */
+
+/* 把通用的灰底暗图掰成"深空观测图" */
+.leaflet-container {
+  background: var(--space-900);
+  font-family: var(--font-body);
+  /* 关键：让 Leaflet 内部 pane 的 z-index 留在容器内，不参与整页层级竞争 */
+  isolation: isolate;
+  outline: none;
+}
+
+/* 瓦片压暗去饱和，往 --space-900 靠（给深色瓦片源用） */
+.leaflet-tile-pane {
+  filter: brightness(0.62) saturate(0.55) contrast(1.08);
+}
+
+/**
+ * 夜视化：把**浅色**瓦片（高德路网）掰成深空底。
+ *
+ * 原理是反色 + 色相回旋：白底→近黑、深灰字→浅灰字、绿地→暗绿、水系→深蓝。
+ * 只给 `tone: 'dark'` 的源挂这个类（卫星影像、本来就是深色的瓦片不需要）。
+ * 一次滤镜到底，所以此时把 pane 的基础滤镜让掉，避免两级亮度串联把底压死。
+ */
+.leaflet-tile-pane:has(.map-tiles-dark) {
+  filter: none;
+}
+
+.map-tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(1.08) contrast(1.03) saturate(0.66);
+}
+
+/*
+ * 深空蒙版：向边缘收拢视线，让星点更亮。
+ *
+ * 亮度与"看不看得清地物"是一对矛盾：蒙版越重越有氛围，但校园里的道路/楼栋轮廓会被吃掉。
+ * 现在的取值是压过一版之后的平衡点 —— 中心留一块真正透明的干净区（46% 之前不叠暗色），
+ * 整体不透明度 0.40，只有边缘渐暗。实测（z16 光谷瓦片 + 真星点尺寸对照）：
+ *   brightness 0.86 / tint 0.55 → 底图几乎全黑，地名读不出来；
+ *   brightness 1.08 / tint 0.40 → 路网、水系、楼栋名可读，整体仍是深空蓝调，星点依旧最亮；
+ *   brightness 1.14 / tint 0.36 → 还能再清楚一档，但开始偏灰，深空感变淡。
+ * 想再亮/再暗就动这两个数，别去改 map-tint 的渐变终点色。
+ */
+.map-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 450;
+  pointer-events: none;
+  background: radial-gradient(128% 108% at 50% 0%, transparent 46%, var(--space-900) 100%);
+  opacity: 0.4;
+}
+
+/* 版权署名：保留（CARTO / OSM 的许可要求），但压到几乎不打扰 */
+.leaflet-control-attribution {
+  background: transparent !important;
+  color: var(--text-lo) !important;
+  font-size: 10px;
+  opacity: 0.45;
+}
+
+.leaflet-control-attribution a {
+  color: var(--text-lo) !important;
+}
+
+/**
+ * 缩放按钮：Leaflet 默认是白底黑字，挂在深空图上像两个贴错的创可贴。
+ * 只用 tokens.css 的变量，不落任何十六进制色值（R1）。
+ */
+.leaflet-bar {
+  border: 1px solid var(--space-700);
+  box-shadow: none;
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  background-color: var(--space-800);
+  color: var(--accent-300);
+  border-bottom-color: var(--space-700);
+}
+
+.leaflet-bar a:hover {
+  background-color: var(--space-700);
+}
+
+.leaflet-bar a:focus-visible {
+  outline: 2px solid var(--accent-400);
+  outline-offset: 2px;
+}
+
+/**
+ * 到达缩放上下限时 Leaflet 会给按钮加 `.leaflet-disabled`，默认是 #f4f4f4 白底 +
+ * 灰字 —— 在深空底上会突然冒出一个白方块（首页首帧 fitBounds 落在 minZoom 时必现）。
+ * 这里把它压回暗底，只靠透明度表达"到头了"。
+ */
+.leaflet-bar a.leaflet-disabled,
+.leaflet-bar a.leaflet-disabled:hover {
+  background-color: var(--space-800);
+  color: var(--text-lo);
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 触屏尺寸下 Leaflet 会把按钮放大到 30px，这里把焦点环半径收一下避免外溢 */
+.leaflet-touch .leaflet-bar {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/** 可拖动 → 保留 Leaflet 的抓手光标，用户一眼能看出这张图能拖动 */
+.leaflet-container.leaflet-grab {
+  cursor: grab;
+}
+
+.leaflet-container.leaflet-grab.leaflet-dragging {
+  cursor: grabbing;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-tint {
+    transition: none;
+  }
+}
