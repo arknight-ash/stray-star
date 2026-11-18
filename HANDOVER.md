@@ -153,7 +153,7 @@
 | `AnimalPhoto` | 独立 embedding，`pendingReview` |
 | `Observation` | `userId?`（**匿名提交为 null**，不建占位 User 以免破坏审计语义）、`severity` 与 `manualSevere` **分开存**（AI 与人来源不同，事后可查分歧）、`seedKey` |
 | `HealthReport` | `healthStatus`（必填无默认：宁可插入失败也不静默变 GREEN）、`confidence`、`disclaimer`、`reviewStatus` / `reviewedByAdmin` **双轨**（见 §9 债务） |
-| `Alert` | `status`（OPEN/ACK/RESOLVED，`ackAt` 与 `resolvedAt` 分离）、`ackedByRole`（匿名最多 ACK，不得 RESOLVE CRITICAL）、`source`（OBSERVATION \| HEALTH_REPORT）、**`dedupeKey`（规则引擎专用）与 `seedKey`（种子专用）严格分开** |
+| `Alert` | `status`（OPEN/ACK/RESOLVED，`ackAt` 与 `resolvedAt` 分离）、`ackedByRole`（匿名最多 ACK，不得 RESOLVE CRITICAL）、`source`（OBSERVATION \| HEALTH_REPORT）、**`dedupeKey`（规则引擎专用）与 `seedKey`（种子专用）严格分开**、`observationId` / `reportId`（**证据回指**：这条预警是被哪次目击、哪份报告触发出来的，`onDelete: SetNull`） |
 | `KnowledgeDoc` / `KnowledgeChunk` | 整篇向量（兜底召回）+ 段级向量（精确定位引用），引用粒度是"第 N 段" |
 | `AuditLog` | `payload Json`（报告审核 diff 进这里） |
 
@@ -179,6 +179,8 @@
 ### 7.4 预警（S7）
 规则集只在 `alerts/rules.ts`（**唯一来源**，新规则只许追加，不许改调用点），带 `source` 分派。
 **预警与业务记录必须同事务写入**——"记下了但没人被通知"比整条失败更危险。一次提交只回传最严重的一档，不许弹两条。
+
+**预警必须留住证据**：规则命中时把触发它的 `observationId` / `reportId` 一并落库（同一事务内），同一 `dedupeKey` 再次命中则把指针刷新到最新证据；本次没带 id 就保留原值，不抹掉已有证据。管理端「预警照片」的取值链因此是 **证据图 > 档案头像 > 第一张归档照片**，每一级都过 `public` 下存在性校验（`uploads` 不进版本库，库里可能留着已删文件的 url），组件端再兜一层 `onError` 退回首字母——管理员要看的是"这次到底拍了什么"，不是这只动物的证件照。
 
 ### 7.5 星枢 Agent（S8）
 真 ReAct：`plan → [决策 → 调工具 → 观察写回 ctx]* → final`。6 个工具（identifyAnimal / assessHealth / queryArchive / addObservation / checkAlerts / searchKnowledge）。

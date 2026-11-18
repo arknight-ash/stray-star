@@ -258,7 +258,7 @@ npm run db:bootstrap     # = db:up（等 healthcheck 通过）→ db:push → db
 ## 管理端
 
 - **门禁**：`ADMIN_TOKEN` + HMAC 签名 cookie（`ss_admin`，12h，httpOnly）。失败关闭：没配口令时 `/admin/alerts` 只显示"未启用"，不会裸奔。
-- **预警处置**：列表（未处理在前、同级按等级）→ 确认 ACK（学生也可认领）→ 解决 RESOLVED（CRITICAL 仅管理员）；全部写审计。
+- **预警处置**：列表（未处理在前、同级按等级）→ 确认 ACK（学生也可认领）→ 解决 RESOLVED（CRITICAL 仅管理员）；全部写审计。照片墙显示的是**触发这条预警的证据照片**（`Alert.observationId` / `reportId` 回指），取不到才回落档案头像，再回落首字母。
 - **关键报告审核**（阶段 9）：只列 SEVERE / 建议就医的报告。通过（可同时修改 assessment/severity，服务端过 `reconcileHealth`：SEVERE 强制 needsVet）、驳回（必须给理由，时间线打红标「已驳回」）、diff 原样进 `AuditLog`。
 
 ## 星枢 Agent
