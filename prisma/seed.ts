@@ -197,13 +197,18 @@ async function seedAlertAndReport(animalIds: Map<string, string>, userIds: Map<s
     '尽快联系校兽医或动保组织安排诱捕送医',
   ];
 
+  const reportImageUrl = existsSync(path.join(PUBLIC_ANIMALS, 'No.005.jpg'))
+    ? '/animals/No.005.jpg'
+    : '/animals/No.005.svg';
+
   await prisma.healthReport.upsert({
     where: { seedKey: 'SEED:REPORT:No.005' },
-    update: { severity: 'SEVERE', advice, confidence: 0.66, healthStatus: 'RED', needsVet: true },
+    // 老库修补：报告缩略图同样别再指向占位图
+    update: { severity: 'SEVERE', advice, confidence: 0.66, healthStatus: 'RED', needsVet: true, imageUrl: reportImageUrl },
     create: {
       animalId,
       seedKey: 'SEED:REPORT:No.005',
-      imageUrl: '/animals/No.005.svg',
+      imageUrl: reportImageUrl,
       assessment,
       severity: 'SEVERE',
       healthStatus: 'RED',

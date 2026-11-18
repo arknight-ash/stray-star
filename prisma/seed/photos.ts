@@ -1,7 +1,12 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import { toVectorLiteral } from '../../src/lib/db/vector';
 import { embedForRetrieval, fingerprintText } from '../../src/lib/identify/fingerprint';
 import { ANIMALS, type AnimalSeed } from './animals';
+
+/** 与 seed.ts 同一目录口径：占位 SVG 和真实照片都落在这里 */
+const PUBLIC_ANIMALS = path.join(process.cwd(), 'public', 'animals');
 
 /**
  * 种子照片：给每只动物补 1 张带向量的 AnimalPhoto。
@@ -14,6 +19,7 @@ import { ANIMALS, type AnimalSeed } from './animals';
 export async function seedPhotos(prisma: PrismaClient, animalIds: Map<string, string>) {
   let created = 0;
   let reused = 0;
+  let upgraded = 0;
 
   for (const a of ANIMALS) {
     const animalId = animalIds.get(a.code);
@@ -22,8 +28,30 @@ export async function seedPhotos(prisma: PrismaClient, animalIds: Map<string, st
       continue;
     }
 
-    const url = `/animals/${a.code}.svg`;
-    const existing = await prisma.animalPhoto.findFirst({ where: { animalId, url } });
+    // 与 seedAnimals 同一口径：有真实照片（No.00X.jpg）就写真照片，没有才回落占位 SVG。
+    // 2026-11-18 修：这里原先把占位 SVG 写进了 AnimalPhoto.url，导致管理员「预警照片」
+    // 墙和任何读 photos[0] 的地方都只见到灰底占位图。
+    const placeholderUrl = `/animals/${a.code}.svg`;
+    const url = existsSync(path.join(PUBLIC_ANIMALS, `${a.code}.jpg`))
+      ? `/animals/${a.code}.jpg`
+      : placeholderUrl;
+
+    let existing = await prisma.animalPhoto.findFirst({ where: { animalId, url } });
+
+    // 老库修补：url 指到占位图的那一行原地改成真实照片。不删旧行再加新行，
+    // 否则 photos[0]（按 createdAt 升序）仍会先命中先建出来的占位图。
+    if (!existing && url !== placeholderUrl) {
+      const stale = await prisma.animalPhoto.findFirst({
+        where: { animalId, url: placeholderUrl },
+      });
+      if (stale) {
+        existing = await prisma.animalPhoto.update({
+          where: { id: stale.id },
+          data: { url },
+        });
+        upgraded += 1;
+      }
+    }
 
     // 与运行时同一向量出口：embedForRetrieval → provider.embed（失败自动降级本地哈希）
     const embedding = await embedForRetrieval(photoFingerprintText(a));
@@ -45,7 +73,9 @@ export async function seedPhotos(prisma: PrismaClient, animalIds: Map<string, st
     created += 1;
   }
 
-  console.log(`✓ 种子照片：新建 ${created} 张，复用 ${reused} 张（含 embedding）`);
+  console.log(
+    `✓ 种子照片：新建 ${created} 张，复用 ${reused} 张，占位图升级 ${upgraded} 张（含 embedding）`,
+  );
 }
 
 /**

@@ -291,6 +291,7 @@ export async function loadAlertsPage(): Promise<AlertsPageData> {
           select: {
             code: true,
             name: true,
+            avatarUrl: true,
             photos: { orderBy: { createdAt: 'asc' as const }, take: 1, select: { url: true } },
           },
         },
@@ -332,7 +333,10 @@ export async function loadAlertsPage(): Promise<AlertsPageData> {
     createdAt: r.createdAt.toISOString(),
     animalName: r.animal.name,
     animalCode: r.animal.code,
-    photo: r.animal.photos[0]?.url ?? null,
+    // 优先动物档案头像（种子/上传都往这里写真实照片），再回落到第一张归档照片。
+    // 2026-11-18 修：此前只读 AnimalPhoto.url，而种子把占位 SVG 写进了那一列，
+    // 整面「预警照片」墙因此全是灰底占位图 —— 真照片其实一直在 avatarUrl 里。
+    photo: r.animal.avatarUrl ?? r.animal.photos[0]?.url ?? null,
   }));
 
   return { items: board.items, counts: board.counts, reports: board.reports, trend, photoCards };
