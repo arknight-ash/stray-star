@@ -51,16 +51,26 @@ git commit -m "feat(agent): recordLocation 支持设备定位
 |---|---|
 | `main` | 可运行的主线，任何时候 clone 下来都能按 README 跑起来 |
 | `feat/*` | 单个功能的开发分支，合入前跑完 `lint` + `typecheck` + 相关 `*-selftest` |
-| `v1.0-submission`（建议） | 给参赛提交打一个 tag，冻结评审版本，后续开发继续在 `main` 上推进 |
+| `v1.0-submission` | 参赛提交标签，已打在冻结评审版本的提交上，后续开发继续在 `main` 上推进 |
 
 ```bash
-git tag -a v1.0-submission -m "参赛提交版本（2026-11-17）"
-git push origin main --tags
+# 已执行（2026-11-18）
+git tag -a v1.0-submission -m "参赛提交版本 v1.0"
+git push -u origin main
+git push origin v1.0-submission
 ```
 
 ## 五、托管与可见性
 
-评审要求仓库为 **Public** 或提供访问权限。两种方式任选：
+本仓库已托管于 **https://github.com/arknight-ash/stray-star**，可见性 **Public**，默认分支 `main`，
+标签 `v1.0-submission` 已推送。评审可直接 clone：
+
+```bash
+git clone https://github.com/arknight-ash/stray-star.git
+git checkout v1.0-submission   # 如需查看冻结的评审版本
+```
+
+如需迁移到其他账号或平台（GitHub / Gitee），命令如下：
 
 ```bash
 # GitHub
