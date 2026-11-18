@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../db';
 import { writeAudit } from '../db/audit';
@@ -260,6 +262,26 @@ export interface AlertsPageData {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * 从候选图片里挑第一张**真的存在**的。
+ *
+ * 为什么要落地校验：`public/uploads` 不进版本库，历史上自测上传的图早就被清掉了，
+ * 库里却还留着 url —— 直接渲染就是一面碎图墙。宁可回落到档案头像，
+ * 也不要让管理员看见六个破图标。外链（http 开头）不做本地校验，交给浏览器。
+ */
+function firstExistingPhoto(...candidates: Array<string | null | undefined>): string | null {
+  for (const url of candidates) {
+    if (!url) continue;
+    if (!url.startsWith('/')) return url;
+    try {
+      if (existsSync(path.join(process.cwd(), 'public', url))) return url;
+    } catch {
+      // 路径异常（非法字符等）当作不存在，继续看下一张
+    }
+  }
+  return null;
+}
+
+/**
  * 预警处置台整页数据（2026-10-27 改版）。
  *
  * 在 loadAlertBoard 之上补两块设计稿要的内容：
@@ -287,6 +309,9 @@ export async function loadAlertsPage(): Promise<AlertsPageData> {
         status: true,
         level: true,
         createdAt: true,
+        // 证据图：这条预警当初是看了哪张照片才发出来的
+        observation: { select: { imageUrl: true } },
+        report: { select: { imageUrl: true } },
         animal: {
           select: {
             code: true,
@@ -333,10 +358,16 @@ export async function loadAlertsPage(): Promise<AlertsPageData> {
     createdAt: r.createdAt.toISOString(),
     animalName: r.animal.name,
     animalCode: r.animal.code,
-    // 优先动物档案头像（种子/上传都往这里写真实照片），再回落到第一张归档照片。
-    // 2026-11-18 修：此前只读 AnimalPhoto.url，而种子把占位 SVG 写进了那一列，
-    // 整面「预警照片」墙因此全是灰底占位图 —— 真照片其实一直在 avatarUrl 里。
-    photo: r.animal.avatarUrl ?? r.animal.photos[0]?.url ?? null,
+    // 优先级 = 证据强度：触发这次预警的那张照片 > 动物档案头像 > 第一张归档照片。
+    // 2026-11-18 两步修：先补上 avatarUrl 兜底（此前只读 photos[0]，而种子把占位
+    // SVG 写进了那一列，整面墙全是灰底占位图），再把证据图提到最前面 ——
+    // 「右后腿外伤」这条预警该显示那条腿，而不是小灰的证件照。
+    photo: firstExistingPhoto(
+      r.observation?.imageUrl,
+      r.report?.imageUrl,
+      r.animal.avatarUrl,
+      r.animal.photos[0]?.url,
+    ),
   }));
 
   return { items: board.items, counts: board.counts, reports: board.reports, trend, photoCards };

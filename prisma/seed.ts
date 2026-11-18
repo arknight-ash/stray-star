@@ -201,7 +201,7 @@ async function seedAlertAndReport(animalIds: Map<string, string>, userIds: Map<s
     ? '/animals/No.005.jpg'
     : '/animals/No.005.svg';
 
-  await prisma.healthReport.upsert({
+  const report = await prisma.healthReport.upsert({
     where: { seedKey: 'SEED:REPORT:No.005' },
     // 老库修补：报告缩略图同样别再指向占位图
     update: { severity: 'SEVERE', advice, confidence: 0.66, healthStatus: 'RED', needsVet: true, imageUrl: reportImageUrl },
@@ -224,13 +224,16 @@ async function seedAlertAndReport(animalIds: Map<string, string>, userIds: Map<s
 
   await prisma.alert.upsert({
     where: { seedKey: 'SEED:ALERT:No.005' },
-    update: { level: 'CRITICAL', status: 'OPEN' },
+    // update 也带上证据指针：老库重播一次，这条预警就有了「触发它的那张图」
+    update: { level: 'CRITICAL', status: 'OPEN', source: 'HEALTH_REPORT', reportId: report.id },
     create: {
       animalId,
       seedKey: 'SEED:ALERT:No.005',
       level: 'CRITICAL',
       reason: '右后腿外伤且连续 2 天精神变差、进食减少，需尽快医疗介入',
       status: 'OPEN',
+      source: 'HEALTH_REPORT',
+      reportId: report.id,
       createdAt: daysAgo(1),
     },
   });

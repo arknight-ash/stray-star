@@ -125,6 +125,8 @@ model Observation {
   createdAt DateTime        @default(now())
 
   reports HealthReport[]
+  // 作为证据被引用到的预警（2026-11-18 起，预警要能回指到触发它的那条目击）
+  alerts  Alert[]         @relation("AlertEvidenceObservation")
 
   @@index([animalId, createdAt])
   @@index([pendingReview])
@@ -172,6 +174,9 @@ model HealthReport {
   seedKey         String?  @unique // 同 Observation：种子幂等键，用户数据恒为 null
   createdAt       DateTime @default(now())
 
+  // 作为证据被引用到的预警（2026-11-18 起，预警要能回指到触发它的那份报告）
+  alerts          Alert[]  @relation("AlertEvidenceReport")
+
   @@index([animalId, createdAt])
 }
 
@@ -187,6 +192,14 @@ model Alert {
   // 为什么不写进 reason 就完事：管理端要按来源筛「同学上报」与「AI 初筛」，
   // 自测也要按来源精确清理自己产生的行，靠字符串匹配 reason 太脆。
   source    String?
+  // 触发这条预警的具体证据：目击记录或健康报告，按 source 二选一。
+  // 为什么要落下来：管理端「预警照片」要显示的是「触发这次预警的那张照片」，
+  // 而 Animal.avatarUrl 只是档案头像 —— 头像是名场面，证据照片才是要处置的东西。
+  // 两者都为空时（老数据 / 规则未带 id）前端回落到档案头像。
+  observationId String?
+  observation   Observation?  @relation("AlertEvidenceObservation", fields: [observationId], references: [id], onDelete: SetNull)
+  reportId      String?
+  report        HealthReport? @relation("AlertEvidenceReport", fields: [reportId], references: [id], onDelete: SetNull)
   createdAt DateTime    @default(now())
   ackAt     DateTime?
   // 关闭时间。与 ackAt 分开：ACK 是「我已知悉」，RESOLVED 是「这件事结了」，
@@ -204,6 +217,8 @@ model Alert {
 
   @@index([status, level])
   @@index([animalId])
+  @@index([observationId])
+  @@index([reportId])
 }
 
 enum AlertLevel {

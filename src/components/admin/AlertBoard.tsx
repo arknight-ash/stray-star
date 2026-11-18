@@ -453,6 +453,36 @@ function AlertTrendPanel({ trend }: { trend: AlertTrendDay[] }) {
   );
 }
 
+/**
+ * 照片墙缩略图。加载失败（上传目录被清过 / 文件丢失）时退回首字母，
+ * 不让 404 在墙上留一个碎图标 —— 服务端已经筛过一遍存在性，这是第二道保险。
+ */
+function AlertPhotoThumb({ src, name }: { src: string | null; name: string }) {
+  const [broken, setBroken] = useState(false);
+
+  if (!src || broken) {
+    return (
+      <span
+        className="grid h-full w-full place-items-center font-display text-xl text-lo"
+        aria-hidden
+      >
+        {name.slice(0, 1)}
+      </span>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- 缩略小图，next/image 收益为负（同首页）
+    <img
+      src={src}
+      alt={`${name}的照片`}
+      className="h-full w-full object-cover"
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 /** 预警照片墙：最近 8 条预警对应动物的第一张照片，无照片画首字母 */
 function AlertPhotoWall({ cards }: { cards: AlertPhotoCard[] }) {
   return (
@@ -476,22 +506,7 @@ function AlertPhotoWall({ cards }: { cards: AlertPhotoCard[] }) {
                   className="block overflow-hidden rounded-card ring-1 ring-space-700/60 transition-transform duration-star ease-star hover:scale-[1.02]"
                 >
                   <div className="relative aspect-[4/3] bg-space-900">
-                    {c.photo ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- 缩略小图，next/image 收益为负（同首页）
-                      <img
-                        src={c.photo}
-                        alt={`${c.animalName}的照片`}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span
-                        className="grid h-full w-full place-items-center font-display text-xl text-lo"
-                        aria-hidden
-                      >
-                        {c.animalName.slice(0, 1)}
-                      </span>
-                    )}
+                    <AlertPhotoThumb src={c.photo} name={c.animalName} />
                     <span
                       className="absolute right-1.5 top-1.5 rounded-sticker px-1.5 py-0.5 text-[10px] backdrop-blur"
                       style={{

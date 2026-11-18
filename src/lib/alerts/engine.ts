@@ -63,12 +63,23 @@ export async function evaluateAlerts(
           reason: decision.reason,
           dedupeKey: decision.dedupeKey,
           source: input.source,
+          // 证据指针：管理端「预警照片」靠它反查那一张具体的图，
+          // 而不是退回到动物档案头像（头像和「这次到底发生了什么」经常不是一回事）。
+          observationId: input.observationId ?? null,
+          reportId: input.reportId ?? null,
           // 规则引擎产生的数据绝不占用 seedKey —— 那是留给种子数据的
           seedKey: null,
         },
         // 已存在的那条只刷新结论，不把它从 ACK/RESOLVED 拽回 OPEN：
         // 「同一天同一规则只发一次」说的是不重复建单，不是让人白处置一次。
-        update: { reason: decision.reason, level },
+        update: {
+          reason: decision.reason,
+          level,
+          // 同一去重键再次命中 = 出现了更新的证据，把指针挪到最新那条；
+          // 这次没带 id 时保持原值，不用 null 把已有证据抹掉。
+          ...(input.observationId ? { observationId: input.observationId } : {}),
+          ...(input.reportId ? { reportId: input.reportId } : {}),
+        },
         select: { id: true, level: true, reason: true, dedupeKey: true, source: true },
       });
       raised.push({
